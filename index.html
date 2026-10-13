@@ -138,6 +138,23 @@
     .result-copy { margin: 10px auto 25px; color: var(--muted); }
     .final-score { display: inline-flex; align-items: baseline; gap: 6px; padding: 12px 20px; border-radius: 14px; background: var(--correct-bg); color: var(--correct); font-weight: 800; }
     .final-score strong { font-size: 2rem; line-height: 1; }
+    .review-toggle { margin-top: 25px; padding: 11px 16px; border: 1px solid var(--cyan); border-radius: 4px; color: var(--cyan); background: transparent; font: inherit; font-weight: 800; cursor: pointer; }
+    .review-toggle:hover { background: color-mix(in srgb, var(--cyan) 10%, transparent); }
+    .review-toggle:focus-visible, .restart:focus-visible { outline: 3px solid color-mix(in srgb, var(--cyan) 55%, transparent); outline-offset: 3px; }
+    .answer-review { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); text-align: left; }
+    .answer-review[hidden] { display: none; }
+    .answer-review h3 { margin: 0 0 13px; color: var(--cyan); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+    .review-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .review-item { padding: 12px 13px; border-left: 3px solid var(--line); border-radius: 3px; background: color-mix(in srgb, var(--surface-strong) 72%, transparent); }
+    .review-item.correct { border-left-color: var(--correct); }
+    .review-item.incorrect { border-left-color: var(--wrong); }
+    .review-question { margin: 0 0 7px; font-weight: 800; }
+    .review-answer { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+    .review-answer strong { color: var(--ink); }
+    .review-status { margin: 8px 0 0; font-size: 13px; font-weight: 800; }
+    .review-item.correct .review-status { color: var(--correct); }
+    .review-item.incorrect .review-status { color: var(--wrong); }
+    .review-empty { margin: 0; color: var(--correct); font-weight: 700; }
     .restart { margin-top: 25px; padding: 12px 20px; border: 0; border-radius: 12px; color: #fff; background: var(--accent); font: inherit; font-weight: 800; cursor: pointer; }
     button:active { transform: scale(.98); }
     @keyframes shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
@@ -172,6 +189,12 @@
         <h2 id="resultTitle">Mission complete!</h2>
         <p class="result-copy" id="resultCopy"></p>
         <div class="final-score"><strong id="finalScore">0</strong><span>/ 10 correct</span></div>
+        <button class="review-toggle" id="reviewToggle" type="button" aria-expanded="false" aria-controls="answerReview">Show answer review</button>
+        <section class="answer-review" id="answerReview" aria-labelledby="reviewHeading" hidden>
+          <h3 id="reviewHeading">Mission answer review</h3>
+          <p class="review-empty" id="reviewEmpty" hidden>Perfect navigation. Every answer was correct.</p>
+          <ol class="review-list" id="reviewList"></ol>
+        </section>
         <br>
         <button class="restart" id="restartButton" type="button">Play again</button>
       </div>
@@ -195,6 +218,7 @@
     let current = 0;
     let score = 0;
     let answered = false;
+    let selectedAnswers = [];
     const question = document.getElementById("question");
     const answers = document.getElementById("answers");
     const feedback = document.getElementById("feedback");
@@ -206,6 +230,10 @@
     const progressTrack = document.querySelector(".progress-track");
     const questionArea = document.getElementById("questionArea");
     const results = document.getElementById("results");
+    const reviewToggle = document.getElementById("reviewToggle");
+    const answerReview = document.getElementById("answerReview");
+    const reviewList = document.getElementById("reviewList");
+    const reviewEmpty = document.getElementById("reviewEmpty");
 
     function renderQuestion() {
       const item = questions[current];
@@ -234,6 +262,7 @@
       if (answered) return;
       answered = true;
       const item = questions[current];
+      selectedAnswers[current] = selected;
       const buttons = [...answers.children];
       buttons.forEach((button) => { button.disabled = true; });
       buttons[item.correct].classList.add("correct");
@@ -262,7 +291,46 @@
       document.getElementById("resultEmoji").textContent = emoji;
       document.getElementById("resultTitle").textContent = title;
       document.getElementById("resultCopy").textContent = ratio >= .8 ? "Mission control is impressed. You know your way around the cosmos." : "Every explorer starts with a first launch. Ready for another orbit?";
+      renderReview();
     }
+
+    function renderReview() {
+      reviewList.innerHTML = "";
+      reviewEmpty.hidden = score !== questions.length;
+      questions.forEach((item, index) => {
+        const selected = selectedAnswers[index];
+        const isCorrect = selected === item.correct;
+        const reviewItem = document.createElement("li");
+        reviewItem.className = `review-item ${isCorrect ? "correct" : "incorrect"}`;
+        const reviewQuestion = document.createElement("p");
+        reviewQuestion.className = "review-question";
+        reviewQuestion.textContent = `${index + 1}. ${item.question}`;
+        const chosenAnswer = document.createElement("p");
+        chosenAnswer.className = "review-answer";
+        chosenAnswer.appendChild(document.createTextNode("Your answer: "));
+        const chosenText = document.createElement("strong");
+        chosenText.textContent = item.answers[selected];
+        chosenAnswer.appendChild(chosenText);
+        const correctAnswer = document.createElement("p");
+        correctAnswer.className = "review-answer";
+        correctAnswer.appendChild(document.createTextNode("Correct answer: "));
+        const correctText = document.createElement("strong");
+        correctText.textContent = item.answers[item.correct];
+        correctAnswer.appendChild(correctText);
+        const status = document.createElement("p");
+        status.className = "review-status";
+        status.textContent = isCorrect ? "Correct" : "Incorrect";
+        reviewItem.append(reviewQuestion, chosenAnswer, correctAnswer, status);
+        reviewList.appendChild(reviewItem);
+      });
+    }
+
+    reviewToggle.addEventListener("click", () => {
+      const isExpanded = reviewToggle.getAttribute("aria-expanded") === "true";
+      reviewToggle.setAttribute("aria-expanded", String(!isExpanded));
+      reviewToggle.textContent = isExpanded ? "Show answer review" : "Hide answer review";
+      answerReview.hidden = isExpanded;
+    });
 
     nextButton.addEventListener("click", () => {
       if (current === questions.length - 1) showResults();
@@ -272,7 +340,13 @@
     document.getElementById("restartButton").addEventListener("click", () => {
       current = 0;
       score = 0;
+      selectedAnswers = [];
       scoreDisplay.textContent = "0";
+      reviewToggle.setAttribute("aria-expanded", "false");
+      reviewToggle.textContent = "Show answer review";
+      answerReview.hidden = true;
+      reviewList.innerHTML = "";
+      reviewEmpty.hidden = true;
       results.classList.remove("visible");
       results.style.display = "none";
       questionArea.style.display = "block";
